@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>First-Use Session Observer</title>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<style>
+  :root{
+    --bg:#14171c;
+    --panel:#1c2128;
+    --panel-2:#232934;
+    --line:#2d333d;
+    --ink:#e8eaed;
+    --ink-dim:#9aa3b0;
+    --accent:#5b9dff;
+    --good:#4caf7d;
+    --warn:#e0a930;
+    --bad:#e0625a;
+    --neutral:#7a8290;
+    --mono: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1280px;
+    margin:0 auto;
+    padding:20px 24px 60px;
+  }
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    border-bottom:1px solid var(--line);
+    padding-bottom:16px;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  header h1{
+    font-size:18px;
+    font-weight:600;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  header .sub{
+    font-size:13px;
+    color:var(--ink-dim);
+    font-family:var(--mono);
+  }
+  .setup{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:20px;
+    margin-bottom:20px;
+  }
+  .setup-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  label{
+    display:block;
+    font-size:12px;
+    color:var(--ink-dim);
+    margin-bottom:6px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  input[type=text]{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--ink);
+    padding:9px 10px;
+    font-size:14px;
+    font-family:var(--sans);
+  }
+  input[type=text]:focus{outline:1px solid var(--accent); border-color:var(--accent);}
+  .btn{
+    background:var(--accent);
+    color:#0b1117;
+    border:none;
+    border-radius:6px;
+    padding:10px 16px;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .btn:hover{filter:brightness(1.08);}
+  .btn:disabled{opacity:.4; cursor:not-allowed;}
+  .btn.secondary{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink);
+  }
+  .btn.danger{background:var(--bad); color:#fff;}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-dim);padding:6px 10px;font-size:12px;}
+
+  .main{
+    display:grid;
+    grid-template-columns:420px 1fr;
+    gap:20px;
+  }
+  @media (max-width:900px){ .main{grid-template-columns:1fr;} }
+
+  .video-panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px;
+  }
+  .video-box{
+    position:relative;
+    width:100%;
+    aspect-ratio:4/3;
+    background:#000;
+    border-radius:8px;
+    overflow:hidden;
+  }
+  video, canvas{
+    position:absolute;
+    top:0; left:0;
+    width:100%; height:100%;
+    object-fit:cover;
+  }
+  .status-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:12px;
+    font-size:12px;
+    font-family:var(--mono);
+    color:var(--ink-dim);
+  }
+  .dot{
+    display:inline-block;
+    width:8px;height:8px;
+    border-radius:50%;
+    background:var(--neutral);
+    margin-right:6px;
+  }
+  .dot.live{background:var(--bad); animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  .timer{
+    font-family:var(--mono);
+    font-size:28px;
+    font-weight:600;
+    text-align:center;
+    margin:14px 0 4px;
+    letter-spacing:.02em;
+  }
+
+  .current-emotion{
+    margin-top:16px;
+    padding:14px;
+    background:var(--panel-2);
+    border-radius:8px;
+    text-align:center;
+  }
+  .current-emotion .label{
+    font-size:12px;
+    color:var(--ink-dim);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-bottom:6px;
+  }
+  .current-emotion .value{
+    font-size:22px;
+    font-weight:700;
+    text-transform:capitalize;
+  }
+  .bars{margin-top:14px; display:flex; flex-direction:column; gap:6px;}
+  .bar-row{display:grid; grid-template-columns:70px 1fr 34px; align-items:center; gap:8px; font-size:11px; color:var(--ink-dim); font-family:var(--mono);}
+  .bar-track{height:6px; background:var(--panel-2); border-radius:4px; overflow:hidden;}
+  .bar-fill{height:100%; border-radius:4px; transition:width .15s linear;}
+
+  .control-panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  .controls-top{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .section-title{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--ink-dim);
+    margin:0 0 10px;
+  }
+  .marker-grid{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .marker-btn{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--ink);
+    padding:8px 14px;
+    border-radius:6px;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .marker-btn:hover{border-color:var(--accent);}
+  .add-marker-row{display:flex; gap:8px;}
+  .add-marker-row input{flex:1;}
+
+  .log{
+    flex:1;
+    min-height:280px;
+    max-height:480px;
+    overflow-y:auto;
+    border:1px solid var(--line);
+    border-radius:8px;
+  }
+  table{width:100%; border-collapse:collapse; font-size:12px;}
+  thead th{
+    position:sticky; top:0;
+    background:var(--panel-2);
+    text-align:left;
+    padding:8px 10px;
+    font-weight:600;
+    color:var(--ink-dim);
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    font-size:10px;
+    border-bottom:1px solid var(--line);
+  }
+  tbody td{
+    padding:7px 10px;
+    border-bottom:1px solid var(--line);
+    font-family:var(--mono);
+  }
+  tbody tr.event td{
+    background:rgba(91,157,255,0.08);
+    font-weight:600;
+    color:var(--accent);
+  }
+  .pill{
+    display:inline-block;
+    padding:2px 8px;
+    border-radius:10px;
+    font-size:11px;
+    font-weight:600;
+    text-transform:capitalize;
+  }
+
+  .export-row{
+    display:flex;
+    gap:10px;
+    justify-content:flex-end;
+    padding-top:10px;
+    border-top:1px solid var(--line);
+  }
+
+  .hint{font-size:12px; color:var(--ink-dim); line-height:1.5;}
+  .empty{
+    display:flex; align-items:center; justify-content:center;
+    height:100%; min-height:280px;
+    color:var(--ink-dim); font-size:13px; text-align:center; padding:20px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>First-Use Session Observer</h1>
+    <div class="sub" id="clock">— runs locally, nothing leaves this device —</div>
+  </header>
+
+  <div class="setup" id="setupPanel">
+    <div class="setup-grid">
+      <div>
+        <label for="participantId">Participant ID</label>
+        <input type="text" id="participantId" placeholder="e.g. P01, or a pseudonym">
+      </div>
+      <div>
+        <label for="sessionNote">Session note (optional)</label>
+        <input type="text" id="sessionNote" placeholder="e.g. system version, condition">
+      </div>
+    </div>
+    <div style="margin-top:14px; display:flex; gap:10px; align-items:center;">
+      <button class="btn" id="startBtn">Start camera & begin session</button>
+      <span class="hint" id="modelStatus">Loading detection models…</span>
+    </div>
+    <p class="hint" style="margin-top:12px;">Before you begin: get the participant's verbal or written consent to be recorded for facial-reaction analysis, and let them know they can stop at any time. Nothing here uploads video anywhere — detection runs entirely in this browser tab.</p>
+  </div>
+
+  <div class="main" id="mainPanel" style="display:none;">
+    <div class="video-panel">
+      <div class="video-box">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="overlay"></canvas>
+      </div>
+      <div class="status-row">
+        <span><span class="dot" id="liveDot"></span><span id="statusText">Initializing…</span></span>
+        <span id="participantTag">—</span>
+      </div>
+      <div class="timer" id="timer">00:00</div>
+
+      <div class="current-emotion">
+        <div class="label">Dominant signal right now</div>
+        <div class="value" id="currentEmotionValue">—</div>
+      </div>
+
+      <div class="bars" id="bars"></div>
+    </div>
+
+    <div class="control-panel">
+      <div class="controls-top">
+        <button class="btn secondary" id="pauseBtn">Pause logging</button>
+        <button class="btn danger" id="endBtn">End session</button>
+      </div>
+
+      <div>
+        <p class="section-title">Mark task / step boundaries</p>
+        <div class="marker-grid" id="defaultMarkers"></div>
+        <div class="add-marker-row" style="margin-top:8px;">
+          <input type="text" id="customMarkerInput" placeholder="Custom marker label…">
+          <button class="btn secondary" id="addCustomMarker">Mark</button>
+        </div>
+      </div>
+
+      <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <p class="section-title">Session timeline</p>
+        <div class="log" id="logBox">
+          <div class="empty">Markers and emotion samples will appear here once the session starts.</div>
+        </div>
+      </div>
+
+      <div class="export-row">
+        <button class="btn ghost" id="clearBtn">Clear log</button>
+        <button class="btn secondary" id="exportJsonBtn">Export JSON</button>
+        <button class="btn" id="exportCsvBtn">Export CSV</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const EMOTION_COLORS = {
+  happy:'#4caf7d', sad:'#5b9dff', angry:'#e0625a', fearful:'#b06ae0',
+  disgusted:'#c98a3a', surprised:'#e0a930', neutral:'#7a8290'
+};
+
+let stream, video, canvas, ctx;
+let sessionActive = false, paused = false;
+let startTime = null;
+let timerInterval = null;
+let sampleInterval = null;
+let log = []; // {t, type: 'sample'|'marker', ...}
+let participantId = '';
+let sessionNote = '';
+let modelsReady = false;
+
+const defaultMarkerLabels = ['Session start', 'Goal stated', 'First action taken', 'Exploring / scanning UI', 'Found it unprompted', 'Confusion observed', 'Wrong path taken', 'Help requested', 'Recovered on own', 'Gave up / abandoned', 'Goal achieved', 'Session end'];
+
+async function loadModels(){
+  const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+  try{
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+    modelsReady = true;
+    document.getElementById('modelStatus').textContent = 'Models loaded. Ready to start.';
+  }catch(e){
+    document.getElementById('modelStatus').textContent = 'Model load failed — check your internet connection, then reload the page.';
+    console.error(e);
+  }
+}
+loadModels();
+
+function fmtTime(ms){
+  const s = Math.floor(ms/1000);
+  const mm = String(Math.floor(s/60)).padStart(2,'0');
+  const ss = String(s%60).padStart(2,'0');
+  return mm+':'+ss;
+}
+
+function renderMarkerButtons(){
+  const wrap = document.getElementById('defaultMarkers');
+  wrap.innerHTML = '';
+  defaultMarkerLabels.forEach(label=>{
+    const b = document.createElement('button');
+    b.className = 'marker-btn';
+    b.textContent = label;
+    b.onclick = ()=>addMarker(label);
+    wrap.appendChild(b);
+  });
+}
+renderMarkerButtons();
+
+function addMarker(label){
+  if(!sessionActive) return;
+  const t = Date.now() - startTime;
+  log.push({type:'marker', t, label});
+  renderLogRow({type:'marker', t, label});
+}
+
+function addSample(expressions){
+  const t = Date.now() - startTime;
+  const top = Object.entries(expressions).sort((a,b)=>b[1]-a[1])[0];
+  const entry = {type:'sample', t, expressions, dominant:top[0], score:top[1]};
+  log.push(entry);
+  updateLiveDisplay(expressions, top);
+  // throttle table rendering of samples to avoid flooding the DOM; show every sample but keep it light
+  renderLogRow(entry);
+}
+
+function updateLiveDisplay(expressions, top){
+  document.getElementById('currentEmotionValue').textContent = top[0] + '  (' + Math.round(top[1]*100) + '%)';
+  document.getElementById('currentEmotionValue').style.color = EMOTION_COLORS[top[0]] || 'var(--ink)';
+  const barsEl = document.getElementById('bars');
+  barsEl.innerHTML = '';
+  Object.entries(expressions).sort((a,b)=>b[1]-a[1]).forEach(([name,val])=>{
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `
+      <span>${name}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${Math.round(val*100)}%; background:${EMOTION_COLORS[name]||'#7a8290'}"></span></span>
+      <span>${Math.round(val*100)}%</span>
+    `;
+    barsEl.appendChild(row);
+  });
+}
+
+function renderLogRow(entry){
+  const logBox = document.getElementById('logBox');
+  if(logBox.querySelector('.empty')) logBox.innerHTML = '<table><thead><tr><th>Time</th><th>Event</th><th>Detail</th></tr></thead><tbody id="logBody"></tbody></table>';
+  const body = document.getElementById('logBody');
+  const tr = document.createElement('tr');
+  if(entry.type === 'marker'){
+    tr.className = 'event';
+    tr.innerHTML = `<td>${fmtTime(entry.t)}</td><td>MARKER</td><td>${entry.label}</td>`;
+  } else {
+    const color = EMOTION_COLORS[entry.dominant] || '#7a8290';
+    tr.innerHTML = `<td>${fmtTime(entry.t)}</td><td>sample</td><td><span class="pill" style="background:${color}22;color:${color};border:1px solid ${color}55">${entry.dominant} ${Math.round(entry.score*100)}%</span></td>`;
+  }
+  body.appendChild(tr);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+async function startSession(){
+  if(!modelsReady){
+    alert('Detection models are still loading. Wait a moment and try again.');
+    return;
+  }
+  participantId = document.getElementById('participantId').value.trim() || ('P-' + Date.now());
+  sessionNote = document.getElementById('sessionNote').value.trim();
+
+  video = document.getElementById('video');
+  canvas = document.getElementById('overlay');
+
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ width:640, height:480 }, audio:false });
+    video.srcObject = stream;
+  }catch(e){
+    alert('Could not access the webcam. Check browser permissions and try again.');
+    return;
+  }
+
+  document.getElementById('setupPanel').style.display = 'none';
+  document.getElementById('mainPanel').style.display = 'grid';
+  document.getElementById('participantTag').textContent = participantId;
+
+  sessionActive = true;
+  paused = false;
+  startTime = Date.now();
+  log = [];
+  addMarker('Session start');
+
+  timerInterval = setInterval(()=>{
+    document.getElementById('timer').textContent = fmtTime(Date.now()-startTime);
+  }, 250);
+
+  video.addEventListener('loadedmetadata', ()=>{
+    canvas.width = video.clientWidth;
+    canvas.height = video.clientHeight;
+  });
+
+  sampleInterval = setInterval(detectFrame, 1000);
+  setStatus(true, 'Detecting…');
+}
+
+async function detectFrame(){
+  if(!sessionActive || paused) return;
+  const result = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({inputSize:224})).withFaceExpressions();
+  ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if(result){
+    setStatus(true, 'Face detected');
+    const dims = faceapi.matchDimensions(canvas, video, true);
+    const resized = faceapi.resizeResults(result, dims);
+    const box = resized.detection.box;
+    const dominant = Object.entries(result.expressions).sort((a,b)=>b[1]-a[1])[0][0];
+    ctx.strokeStyle = EMOTION_COLORS[dominant] || '#5b9dff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(box.x, box.y, box.width, box.height);
+    addSample(result.expressions);
+  } else {
+    setStatus(true, 'No face detected');
+  }
+}
+
+function setStatus(live, text){
+  document.getElementById('statusText').textContent = text;
+  document.getElementById('liveDot').className = 'dot' + (live && !paused ? ' live' : '');
+}
+
+function togglePause(){
+  paused = !paused;
+  document.getElementById('pauseBtn').textContent = paused ? 'Resume logging' : 'Pause logging';
+  setStatus(true, paused ? 'Paused' : 'Detecting…');
+  if(paused){
+    log.push({type:'marker', t: Date.now()-startTime, label:'— Logging paused —'});
+    renderLogRow(log[log.length-1]);
+  } else {
+    log.push({type:'marker', t: Date.now()-startTime, label:'— Logging resumed —'});
+    renderLogRow(log[log.length-1]);
+  }
+}
+
+function endSession(){
+  if(!sessionActive) return;
+  addMarker('Session end');
+  sessionActive = false;
+  clearInterval(timerInterval);
+  clearInterval(sampleInterval);
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); }
+  setStatus(false, 'Session ended — export your data below');
+}
+
+function buildExportData(){
+  return {
+    participantId,
+    sessionNote,
+    exportedAt: new Date().toISOString(),
+    durationMs: log.length ? log[log.length-1].t : 0,
+    events: log
+  };
+}
+
+function exportJSON(){
+  const data = buildExportData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  downloadBlob(blob, `${participantId || 'session'}_emotion_log.json`);
+}
+
+function exportCSV(){
+  const rows = [['time_ms','time_mmss','type','dominant_or_label','score','happy','sad','angry','fearful','disgusted','surprised','neutral']];
+  log.forEach(e=>{
+    if(e.type === 'marker'){
+      rows.push([e.t, fmtTime(e.t), 'marker', e.label, '', '', '', '', '', '', '', '']);
+    } else {
+      const ex = e.expressions;
+      rows.push([e.t, fmtTime(e.t), 'sample', e.dominant, e.score.toFixed(3),
+        (ex.happy||0).toFixed(3), (ex.sad||0).toFixed(3), (ex.angry||0).toFixed(3),
+        (ex.fearful||0).toFixed(3), (ex.disgusted||0).toFixed(3), (ex.surprised||0).toFixed(3), (ex.neutral||0).toFixed(3)]);
+    }
+  });
+  const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  downloadBlob(blob, `${participantId || 'session'}_emotion_log.csv`);
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function clearLog(){
+  if(!confirm('Clear the current session log? This cannot be undone.')) return;
+  log = [];
+  document.getElementById('logBox').innerHTML = '<div class="empty">Markers and emotion samples will appear here once the session starts.</div>';
+}
+
+document.getElementById('startBtn').onclick = startSession;
+document.getElementById('pauseBtn').onclick = togglePause;
+document.getElementById('endBtn').onclick = endSession;
+document.getElementById('exportJsonBtn').onclick = exportJSON;
+document.getElementById('exportCsvBtn').onclick = exportCSV;
+document.getElementById('clearBtn').onclick = clearLog;
+document.getElementById('addCustomMarker').onclick = ()=>{
+  const input = document.getElementById('customMarkerInput');
+  if(input.value.trim()){ addMarker(input.value.trim()); input.value=''; }
+};
+document.getElementById('customMarkerInput').addEventListener('keydown', e=>{
+  if(e.key === 'Enter') document.getElementById('addCustomMarker').click();
+});
+</script>
+</body>
+</html>
